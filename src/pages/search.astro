@@ -44,7 +44,7 @@ import { site } from '../config';
         if (!indexPromise) {
           const controller = new AbortController();
           const timeout = window.setTimeout(() => controller.abort(), 8000);
-          indexPromise = fetch('/search.json', { signal: controller.signal, cache: 'no-store' })
+          indexPromise = fetch('/search.json', { signal: controller.signal, cache: 'no-cache' })
             .then(response => {
               if (!response.ok) throw new Error('Search index unavailable');
               return response.json();

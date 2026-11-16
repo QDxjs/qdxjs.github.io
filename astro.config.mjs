@@ -1,6 +1,6 @@
 import { defineConfig } from 'astro/config';
 
 export default defineConfig({
-  site: 'https://xingjisheneg.github.io',
+  site: process.env.SITE_URL || 'https://xingjisheneg.github.io',
   base: '/',
 });
