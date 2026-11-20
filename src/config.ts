@@ -1,7 +1,7 @@
 /** 站点文字与作者维护开关；内容未确认时保留 demo: true。 */
 export const site = {
   name: '青灯黄卷',
-  description: '阅读札记、生活随笔与小作品。当前文章、作品介绍和个人简介均为演示内容。',
+  description: '阅读札记、生活随笔与小作品。标有“演示内容”的条目与个人简介为演示内容。',
   author: 'QD',
   authorDemo: true,
   domain: 'xingjisheneg.github.io',
