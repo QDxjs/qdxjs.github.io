@@ -189,9 +189,17 @@ img{max-width:100%;height:auto;display:block}
 .prose h2::before{content:"";width:24px;height:2px;background:var(--accent);flex:none;align-self:center}
 .prose h3{font-size:1.1rem;font-weight:600;margin:1.6rem 0 .6rem}
 .prose blockquote{font-family:var(--kai);font-size:1.18rem;color:var(--muted);border-left:3px solid var(--accent);padding:.3rem 0 .3rem 1.1rem;margin:1.4rem 0;line-height:1.8}
-.prose code{font-family:var(--mono);font-size:.86em;background:var(--bg2);padding:.12em .4em;border-radius:3px;color:var(--accent)}
-.prose pre{font-family:var(--mono);background:var(--bg2);border:1px solid var(--rule);border-radius:var(--r);padding:1rem 1.2rem;overflow-x:auto;font-size:.85rem;line-height:1.7;margin:1.2rem 0}
-.prose pre code{background:none;padding:0;color:var(--ink)}
+.prose code{font-family:var(--mono);font-size:max(.875rem,.86em);background:var(--bg2);padding:.12em .4em;border-radius:3px;color:var(--accent)}
+.prose pre{font-family:var(--mono);background:var(--bg2);color:var(--ink);border:1px solid var(--rule);border-radius:var(--r);padding:1rem 1.2rem;max-width:100%;overflow-x:auto;font-size:.875rem;line-height:1.7;margin:1.2rem 0;overflow-wrap:normal}
+.prose pre code{font-size:inherit;line-height:inherit;background:none;padding:0;color:inherit}
+/* Shiki emits both palettes; only code blocks and their tokens follow the site theme. */
+.prose pre.astro-code{background-color:var(--shiki-light-bg);color:var(--shiki-light)}
+.prose .astro-code span{color:var(--shiki-light);font-style:var(--shiki-light-font-style);font-weight:var(--shiki-light-font-weight);text-decoration:var(--shiki-light-text-decoration)}
+html[data-theme="dark"] .prose pre.astro-code{background-color:var(--shiki-dark-bg);color:var(--shiki-dark)}
+html[data-theme="dark"] .prose .astro-code span{color:var(--shiki-dark);font-style:var(--shiki-dark-font-style);font-weight:var(--shiki-dark-font-weight);text-decoration:var(--shiki-dark-text-decoration)}
+.prose .plugin-figure{margin:1.6rem 0}
+.prose .plugin-figure img{margin:0 auto;border:1px solid var(--rule);border-radius:var(--r)}
+.prose .plugin-figure figcaption{margin-top:.6rem;color:var(--muted);font-size:.9rem;line-height:1.8;text-align:center}
 .prose ul{margin:1rem 0;padding-left:1.4rem}
 .prose li{margin:.4rem 0}
 .prose li::marker{color:var(--accent)}
