@@ -2,13 +2,16 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ArticleCard from '../components/ArticleCard.astro';
 import WorkCard from '../components/WorkCard.astro';
-import { getSectionEntries, homeSelection, type Section } from '../content-utils';
+import { getSectionEntries, homeSelection, entrySummary, entryURL, type Section } from '../content-utils';
 import { hero, sections, site, footer } from '../config';
 
 const groups = await Promise.all((['notes', 'essays', 'works'] as Section[]).map(async section => {
   const entries = await getSectionEntries(section);
   return { section, entries, selected: homeSelection(entries), config: sections[section] };
 }));
+const published = groups.flatMap(group => group.entries).filter(entry => !entry.data.demo);
+const lead = published.find(entry => entry.data.featured) || published[0];
+const leadCover = lead?.collection === 'works' ? lead.data.cover : undefined;
 ---
 <BaseLayout title={`${site.name} · 阅读、随笔与作品`} active="home">
   <div class="container home-page" data-list-page>
@@ -17,25 +20,43 @@ const groups = await Promise.all((['notes', 'essays', 'works'] as Section[]).map
       <p class="home-eyebrow">阅读 · 记录 · 创作</p>
       <h1>{hero.title}</h1>
       <p class="lede">{hero.lede}</p>
-      <div class="home-note">
-        <p><span class="demo-badge">内容说明</span> 标有“演示内容”的条目与个人简介为演示内容。</p>
-        <a href="/rss.xml" class="rss-entry">{footer.rssLabel} <span aria-hidden="true">↗</span></a>
-      </div>
+      <nav class="home-jump-links" aria-label="首页栏目快捷入口">
+        {groups.map(({ section, config }) => <a href={`#home-${section}`}>{config.title} <span aria-hidden="true">↓</span></a>)}
+        <a href="/tags/">按标签浏览 <span aria-hidden="true">→</span></a>
+      </nav>
     </header>
+    {lead && (
+      <section class="home-featured" aria-labelledby="home-featured-title" data-home-featured>
+        <div class="home-featured-copy">
+          <p class="home-featured-label">从这里开始 · {sections[lead.collection].title}</p>
+          <h2 id="home-featured-title"><a href={entryURL(lead)} data-detail-link>{lead.data.title}</a></h2>
+          <p>{entrySummary(lead)}</p>
+          <a href={entryURL(lead)} class="home-featured-action" data-detail-link>{lead.collection === 'works' ? '了解这个作品' : '开始阅读'} <span aria-hidden="true">→</span></a>
+        </div>
+        {leadCover && <a href={entryURL(lead)} class="home-featured-preview" data-detail-link aria-label={`查看${lead.data.title}作品介绍`}><img src={leadCover.src} alt={leadCover.alt} width={leadCover.width} height={leadCover.height} decoding="async" fetchpriority="high" /></a>}
+      </section>
+    )}
+    <div class="home-note">
+      <p>标有“演示内容”的条目与个人简介用于站点展示，不代表已核实的经历或成果。</p>
+      <a href="/rss.xml" class="rss-entry">{footer.rssLabel} <span aria-hidden="true">↗</span></a>
+    </div>
     <div class="home-columns">
-      {groups.map(({ section, entries, selected, config }) => (
-        <section class="home-section" aria-labelledby={`home-${section}`}>
-          <div class="sec-head">
-            <h2 id={`home-${section}`}>{config.title}</h2>
-            <a class="sec-more" href={`/${section}/`}>{config.moreLabel.replace('{n}', String(entries.length))}</a>
-          </div>
-          <p class="sec-sub">{config.sub}</p>
-          <div class:list={[section === 'works' ? 'work-grid' : 'cards']}>
-            {selected.map(item => item.collection === 'works' ? <WorkCard work={item} /> : <ArticleCard item={item} />)}
-          </div>
-          {selected.length === 0 && <p class="empty-state">暂无内容，稍后再来翻阅。</p>}
-        </section>
-      ))}
+      {groups.map(({ section, entries, selected, config }) => {
+        const remaining = selected.filter(item => !lead || item.collection !== lead.collection || item.id !== lead.id);
+        return (
+          <section class="home-section" aria-labelledby={`home-${section}`}>
+            <div class="sec-head">
+              <h2 id={`home-${section}`}>{config.title}</h2>
+              <a class="sec-more" href={`/${section}/`}>{config.moreLabel.replace('{n}', String(entries.length))}</a>
+            </div>
+            <p class="sec-sub">{config.sub}</p>
+            <div class:list={[section === 'works' ? 'work-grid' : 'cards']}>
+              {remaining.map(item => item.collection === 'works' ? <WorkCard work={item} /> : <ArticleCard item={item} />)}
+            </div>
+            {remaining.length === 0 && <p class="empty-state">{entries.length ? '本栏内容已在上方推荐，点击标题即可阅读。' : '暂无内容，稍后再来翻阅。'}</p>}
+          </section>
+        );
+      })}
     </div>
   </div>
 </BaseLayout>

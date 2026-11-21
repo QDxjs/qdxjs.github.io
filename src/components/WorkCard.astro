@@ -4,21 +4,27 @@ import { entryURL, tagURL } from '../content-utils';
 
 interface Props { work: CollectionEntry<'works'>; index?: number; showSection?: boolean }
 const { work, showSection = false } = Astro.props;
-const { title, desc, cls, platforms, tags, demo, featured, date } = work.data;
+const { title, desc, cls, cover, platforms, tags, demo, featured, date } = work.data;
 ---
 <article class="work">
-  <div class={`work-thumb ${cls}`} aria-hidden="true"><span>{title.split(' · ')[0]}</span></div>
-  <div class="work-info">
-    <div class="card-labels">
-      {demo && <span class="demo-badge">演示内容</span>}
-      {showSection && <span class="section-label">作品</span>}
-      {featured && <span class="featured-label">作者精选</span>}
+  <a href={entryURL(work)} class="work-primary card-primary" data-detail-link>
+    <div class:list={['work-thumb', cls, { 'has-preview': Boolean(cover) }]}>
+      {cover
+        ? <img src={cover.src} alt={cover.alt} width={cover.width} height={cover.height} loading="lazy" decoding="async" />
+        : <span aria-hidden="true">{title.split(' · ')[0]}</span>}
     </div>
-    <a href={entryURL(work)} class="card-primary" data-detail-link>
+    <div class="work-info">
+      <div class="card-labels">
+        {demo && <span class="demo-badge">演示内容</span>}
+        {showSection && <span class="section-label">作品</span>}
+        {featured && <span class="featured-label">作者精选</span>}
+      </div>
       <h3 class="card-title">{title}</h3>
       <p>{desc}</p>
-      <span class="work-read">阅读站内介绍 <span aria-hidden="true">↗</span></span>
-    </a>
+      <span class="work-read">阅读作品介绍 <span aria-hidden="true">→</span></span>
+    </div>
+  </a>
+  <div class="work-meta">
     {date && <time class="work-date" datetime={date}>发布于 {date}</time>}
     {platforms.length > 0 && <p class="work-platforms">平台：{platforms.join(' · ')}</p>}
     {tags.length > 0 && <div class="tags" aria-label="内容标签">{tags.map(tag => <a class="tag" href={tagURL(tag)}>{tag}</a>)}</div>}

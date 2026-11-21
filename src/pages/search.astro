@@ -6,7 +6,7 @@ import { site } from '../config';
   <div class="container">
     <div class="search-wrap" id="searchPage" data-list-page data-list-top tabindex="-1">
       <h1 class="search-heading">搜索</h1>
-      <p class="search-help" id="searchHelp">检索札记、随笔与作品的标题、摘要、标签和正文，按完整关键词匹配，不区分大小写。</p>
+      <p class="search-help" id="searchHelp">检索札记、随笔与作品的标题、摘要、标签、来源和正文，按完整关键词匹配，不区分大小写；优先显示标题命中结果。</p>
       <form id="searchForm" action="/search/" method="get" role="search">
         <label for="q">关键词</label>
         <div class="search-controls">
@@ -92,7 +92,9 @@ import { site } from '../config';
         const article = element('article', 'sr-item');
         const heading = element('h2', 'st');
         const link = element('a', '');
-        link.href = item.url;
+        const url = new URL(item.url, window.location.origin);
+        link.href = url.origin === window.location.origin && /^\/(notes|essays|works)\//.test(url.pathname)
+          ? url.pathname + url.search + url.hash : '/search/';
         link.dataset.detailLink = '';
         highlight(link, item.title, needle);
         heading.append(link);
@@ -143,10 +145,15 @@ import { site } from '../config';
           const index = await loadIndex();
           if (requestGeneration !== generation) return;
           const needle = query.toLowerCase();
-          const matches = index.filter(item =>
-            [item.title, item.excerpt, item.src, item.body, ...item.tags]
-              .some(text => text.toLowerCase().includes(needle))
-          );
+          // Rank by the strongest matching field, never by occurrence counts.
+          // An explicit index tie-break preserves the source order for equal ranks.
+          const matches = index.map((item, order) => {
+            const fields = [[item.title], item.tags, [item.excerpt], [item.src], [item.body]];
+            const rank = fields.findIndex(texts => texts.some(text => text.toLowerCase().includes(needle)));
+            return { item, order, rank };
+          }).filter(match => match.rank !== -1)
+            .sort((a, b) => a.rank - b.rank || a.order - b.order)
+            .map(match => match.item);
           if (!matches.length) {
             results.append(element('p', 'search-empty', '青灯之下，未寻得此卷。换个词试试？'));
             setState('empty', `“${query}”：找到 0 条结果。`);
@@ -201,25 +208,25 @@ import { site } from '../config';
     .search-box svg{width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:1.6;flex:none}
     .search-box input{width:100%;min-width:0;border:none;background:none;color:var(--ink);font-family:var(--serif);font-size:1.05rem;outline:none}
     .search-box input::placeholder{color:var(--faint)}
-    .search-action{min-height:44px;padding:.6rem .9rem;border:1px solid var(--rule2);border-radius:var(--r);background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:.88rem;cursor:pointer}
+    .search-action{min-height:44px;padding:.6rem .9rem;border:1px solid var(--rule2);border-radius:var(--r);background:var(--paper);color:var(--ink);font-family:var(--ui);font-size:.88rem;cursor:pointer}
     .search-action:hover{border-color:var(--accent)}
     .search-submit{background:var(--accent);border-color:var(--accent);color:var(--paper)}
     .search-action:focus-visible,#searchPage :global(a:focus-visible){outline:2px solid var(--accent);outline-offset:3px}
-    .search-meta{font-size:.84rem;color:var(--muted);margin:1.2rem 0 .4rem;padding:0 .2rem;overflow-wrap:anywhere}
+    .search-meta{font-size:.875rem;color:var(--muted);margin:1.2rem 0 .4rem;padding:0 .2rem;overflow-wrap:anywhere}
     #searchPage :global(.sr-item){padding:1rem 1.1rem;border-bottom:1px solid var(--rule);transition:.15s;border-radius:var(--r);overflow-wrap:anywhere}
     #searchPage :global(.sr-item:hover){background:var(--bg2)}
     #searchPage :global(.st){font-size:1rem;font-weight:600}
     #searchPage :global(.st a){color:var(--ink)}
     #searchPage :global(.st a:hover){color:var(--accent);text-decoration:underline}
     #searchPage :global(.sr-meta){display:flex;flex-wrap:wrap;align-items:center;gap:.6rem;margin-top:.25rem}
-    #searchPage :global(.sec){font-family:var(--kai);font-size:.8rem;color:var(--accent)}
-    #searchPage :global(.demo){font-size:.72rem;color:var(--accent);border:1px solid var(--rule2);border-radius:var(--r);padding:0 .4rem}
-    #searchPage :global(.sd){font-family:var(--latin);font-size:.82rem;color:var(--muted);font-style:italic}
-    #searchPage :global(.sr-source){font-size:.78rem;color:var(--muted)}
+    #searchPage :global(.sec){font-family:var(--kai);font-size:.875rem;color:var(--accent)}
+    #searchPage :global(.demo){font-size:.875rem;color:var(--accent);border:1px solid var(--rule2);border-radius:var(--r);padding:0 .4rem}
+    #searchPage :global(.sd){font-family:var(--latin);font-size:.875rem;color:var(--muted);font-style:italic}
+    #searchPage :global(.sr-source){font-size:.875rem;color:var(--muted)}
     #searchPage :global(.ss){margin-top:.3rem;font-size:.88rem;color:var(--muted);line-height:1.7}
     #searchPage :global(mark){background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--ink);font-weight:inherit;border-radius:2px}
     #searchPage :global(.stags){display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.5rem}
-    #searchPage :global(.stag){font-size:.74rem;color:var(--accent2);border:1px solid var(--rule2);border-radius:12px;padding:.08rem .55rem}
+    #searchPage :global(.stag){font-size:.875rem;color:var(--accent2);border:1px solid var(--rule2);border-radius:12px;padding:.08rem .55rem}
     #searchPage :global(.stag:hover){border-color:var(--accent2);background:var(--paper)}
     #searchPage :global(.search-empty){text-align:center;padding:2.5rem 1rem;color:var(--muted);font-family:var(--kai);font-size:1.05rem;line-height:2}
     .search-noscript{margin-top:1.5rem;color:var(--muted);font-size:.9rem}

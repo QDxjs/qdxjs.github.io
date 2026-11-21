@@ -48,6 +48,12 @@ const works = defineCollection({
     ...shared,
     desc: z.string().min(1),
     cls: z.string(),
+    cover: z.object({
+      src: z.string().regex(/^\/images\/[a-z\d/_-]+\.(?:png|jpe?g|webp|avif)$/i, '封面须为站内图片'),
+      alt: z.string().trim().min(1),
+      width: z.number().int().positive(),
+      height: z.number().int().positive(),
+    }).optional(),
     date: date.optional(),
     platforms: z.array(z.string()).default([]),
     links: z.array(projectLink).default([]).refine(links => new Set(links.map(link => link.kind)).size === links.length, '源码、体验、下载各维护一个地址'),

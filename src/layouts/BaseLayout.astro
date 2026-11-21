@@ -85,6 +85,13 @@ const websiteJsonLd = {
 
       const menu = document.getElementById('menuBtn');
       const nav = document.getElementById('nav');
+      const navHome = nav?.nextElementSibling;
+      const mobileMenu = matchMedia('(max-width: 900px)');
+      function placeNavigation() {
+        // Keep DOM/Tab order aligned with the responsive visual layout.
+        if (mobileMenu.matches) menu?.after(nav);
+        else if (navHome) navHome.before(nav);
+      }
       function closeMenu(focus = false) {
         nav?.classList.remove('open');
         menu?.setAttribute('aria-expanded', 'false');
@@ -98,6 +105,7 @@ const websiteJsonLd = {
         menu.setAttribute('aria-expanded', String(open));
         menu.setAttribute('aria-label', open ? '收起菜单' : '展开菜单');
         menu.setAttribute('title', open ? '收起菜单' : '展开菜单');
+        if (open) nav.querySelector('a[href]')?.focus();
       });
       nav?.addEventListener('click', event => { if (event.target.closest('a')) closeMenu(); });
       document.addEventListener('keydown', event => {
@@ -106,8 +114,13 @@ const websiteJsonLd = {
       document.addEventListener('click', event => {
         if (!event.target.closest('.topbar')) closeMenu();
       });
-      matchMedia('(max-width: 900px)').addEventListener('change', () => closeMenu());
+      mobileMenu.addEventListener('change', () => {
+        const focusedLink = nav?.contains(document.activeElement);
+        closeMenu(Boolean(mobileMenu.matches && focusedLink));
+        placeNavigation();
+      });
       if (menu && nav) {
+        placeNavigation();
         menu.hidden = false;
         document.documentElement.dataset.js = 'true';
       }

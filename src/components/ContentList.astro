@@ -24,6 +24,7 @@ const pages = Math.ceil(entries.length / 10);
   )}
   <div class="list-summary" data-list-top tabindex="-1">
     <p data-list-status role="status" aria-live="polite">{isTags ? '选择一个标签，继续翻阅相关内容。' : `共 ${entries.length} 条内容，每页最多 10 条。`}</p>
+    {!isTags && <a class="all-tags-link" href={`/tags/?section=${mode}&page=1`}>浏览全部标签</a>}
     <p class="list-feedback" data-list-feedback hidden></p>
   </div>
   <div class:list={['list-items', mode === 'works' ? 'work-grid' : 'cards', { 'tag-results': isTags }]}>
@@ -37,7 +38,7 @@ const pages = Math.ceil(entries.length / 10);
     <p data-empty-message>暂无内容。</p>
     <p class="empty-links"><a href="/notes/">浏览札记</a><a href="/essays/">浏览随笔</a><a href="/works/">浏览作品</a></p>
   </div>
-  <nav class="pagination" data-pagination aria-label="内容分页" hidden={isTags || entries.length === 0}>
+  <nav class="pagination" data-pagination aria-label="内容分页" hidden={isTags || pages <= 1}>
     <a data-page-prev aria-disabled="true" tabindex="-1">上一页</a>
     <span data-page-label>第 1 / {pages || 1} 页</span>
     <a data-page-next href={pages > 1 ? '?page=2' : undefined} aria-disabled={pages <= 1 ? 'true' : undefined} tabindex={pages <= 1 ? -1 : undefined}>下一页</a>
@@ -97,6 +98,10 @@ const pages = Math.ceil(entries.length / 10);
           else link.removeAttribute('aria-current');
         });
         root.querySelectorAll<HTMLAnchorElement>('[data-tag-choice]').forEach(link => {
+          const target = new URL(url);
+          target.searchParams.set('tag', link.dataset.tagChoice!);
+          target.searchParams.set('page', '1');
+          link.href = target.href;
           if (link.dataset.tagChoice === tag) link.setAttribute('aria-current', 'true');
           else link.removeAttribute('aria-current');
         });
@@ -113,7 +118,7 @@ const pages = Math.ceil(entries.length / 10);
       emptyMessage.textContent = isTags
         ? (tagged.length > 0 ? '该栏目下暂无此标签内容。可切换其他栏目继续浏览。' : `暂无带有“${tag}”标签的内容。`)
         : '暂无内容，稍后再来翻阅。';
-      pagination.hidden = totalPages === 0;
+      pagination.hidden = totalPages <= 1;
       label.textContent = `第 ${page} / ${totalPages || 1} 页`;
       [[previous, page - 1], [next, page + 1]].forEach(([link, number]) => {
         const anchor = link as HTMLAnchorElement;
@@ -155,7 +160,8 @@ const pages = Math.ceil(entries.length / 10);
 
 <style>
   .list-summary { margin-top: 1.5rem; color: var(--muted); font-size: .88rem; scroll-margin-top: 5.5rem; }
-  .list-feedback { margin-top: .6rem; padding: .7rem 1rem; border-left: 2px solid var(--accent); color: var(--muted); background: var(--paper); font-size: .86rem; }
+  .all-tags-link { display: inline-flex; align-items: center; min-height: 44px; text-decoration: underline; text-underline-offset: .2em; }
+  .list-feedback { margin-top: .6rem; padding: .7rem 1rem; border-left: 2px solid var(--accent); color: var(--muted); background: var(--paper); font-size: .875rem; }
   .list-items { margin-top: .6rem; }
   .pagination { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 1rem; margin-top: 2rem; padding-top: 1.2rem; border-top: 1px solid var(--rule); font-size: .88rem; }
   .pagination a { display: inline-flex; min-height: 44px; align-items: center; padding: .4rem .9rem; border: 1px solid var(--rule2); border-radius: var(--r); }
@@ -165,10 +171,11 @@ const pages = Math.ceil(entries.length / 10);
   .list-filters { display: flex; flex-wrap: wrap; gap: .5rem; border-bottom: 1px solid var(--rule); padding-bottom: 1rem; }
   .list-filters a { min-height: 44px; padding: .5rem 1rem; border: 1px solid var(--rule2); border-radius: var(--r); color: var(--muted); }
   .list-filters a[aria-current], .tag-index a[aria-current] { border-color: var(--accent); color: var(--accent); background: var(--paper); font-weight: 700; }
-  .tag-results :global(.work) { margin: 1rem 0; display: grid; grid-template-columns: 8rem minmax(0, 1fr); }
+  .tag-results :global(.work) { margin: 1rem 0; }
+  .tag-results :global(.work-primary) { display: grid; grid-template-columns: 8rem minmax(0, 1fr); }
   .tag-results :global(.work-thumb) { height: 100%; min-height: 8rem; }
   @media (max-width: 520px) {
-    .tag-results :global(.work) { grid-template-columns: 1fr; }
+    .tag-results :global(.work-primary) { grid-template-columns: 1fr; }
     .tag-results :global(.work-thumb) { height: 5rem; min-height: 0; }
     .pagination { gap: .65rem; }
   }
