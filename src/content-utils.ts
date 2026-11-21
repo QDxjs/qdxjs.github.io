@@ -5,8 +5,8 @@ export type Entry = CollectionEntry<'notes'> | CollectionEntry<'essays'> | Colle
 export const sectionLabels: Record<Section, string> = { notes: '札记', essays: '随笔', works: '作品' };
 
 function stableOrder(a: Entry, b: Entry) {
-  const first = `${a.collection}/${a.slug}`;
-  const second = `${b.collection}/${b.slug}`;
+  const first = `${a.collection}/${a.id}`;
+  const second = `${b.collection}/${b.id}`;
   return first < second ? -1 : first > second ? 1 : 0;
 }
 
@@ -38,7 +38,7 @@ export function homeSelection(entries: Entry[]) {
 }
 
 export function entryURL(entry: Entry) {
-  return `/${entry.collection}/${entry.slug}/`;
+  return `/${entry.collection}/${entry.id}/`;
 }
 
 export function tagURL(tag: string) {

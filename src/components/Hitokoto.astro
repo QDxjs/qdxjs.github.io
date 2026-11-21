@@ -42,7 +42,8 @@ import { hitokoto as cfg } from '../config';
     const fe=box.querySelector('[data-hk-from]');
     const hint=box.querySelector('[data-hk-hint]');
     let loading=false;
-    function apply(d){
+    function apply(d: { hitokoto?: string; from_who?: string; from?: string }){
+      if(!te||!fe)return;
       te.textContent=d.hitokoto||'';
       let src='';
       if(d.from_who)src+=d.from_who;
@@ -50,7 +51,7 @@ import { hitokoto as cfg } from '../config';
       fe.textContent='—— '+(src||'一言');
     }
     function pickCat(){return cats.length?cats[Math.floor(Math.random()*cats.length)]:'';}
-    function fade(cb){te.classList.add('hk-fade');fe.classList.add('hk-fade');setTimeout(function(){cb();te.classList.remove('hk-fade');fe.classList.remove('hk-fade');},250);}
+    function fade(cb: () => void){if(!te||!fe)return;te.classList.add('hk-fade');fe.classList.add('hk-fade');setTimeout(function(){cb();te.classList.remove('hk-fade');fe.classList.remove('hk-fade');},250);}
     async function load(){
       if(loading)return;
       loading=true;

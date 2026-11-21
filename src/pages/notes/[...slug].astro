@@ -1,6 +1,6 @@
 ---
 import type { GetStaticPaths } from 'astro';
-import type { CollectionEntry } from 'astro:content';
+import { render, type CollectionEntry } from 'astro:content';
 import ArticleLayout from '../../layouts/ArticleLayout.astro';
 import { getSectionEntries } from '../../content-utils';
 
@@ -14,7 +14,7 @@ export const getStaticPaths = (async () => {
   const notes = (await getSectionEntries('notes'))
     .filter((entry): entry is CollectionEntry<'notes'> => entry.collection === 'notes');
   return notes.map((item, i) => ({
-    params: { slug: item.slug },
+    params: { slug: item.id },
     props: {
       item,
       prev: i < notes.length - 1 ? notes[i + 1] : null,
@@ -24,7 +24,7 @@ export const getStaticPaths = (async () => {
 }) satisfies GetStaticPaths;
 
 const { item, prev, next } = Astro.props;
-const { Content, headings } = await item.render();
+const { Content, headings } = await render(item);
 ---
 <ArticleLayout item={item} section="notes" sectionLabel="阅读札记" headings={headings} prev={prev} next={next}>
   <Content />

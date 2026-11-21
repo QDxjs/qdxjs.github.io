@@ -3,7 +3,7 @@
 // @name:zh-CN   一言 · 全站通用版
 // @name:en      Hitokoto · Universal
 // @namespace    https://v1.hitokoto.cn
-// @version      2.3
+// @version      2.4
 // @description  在任意网页顶部/底部显示一言（Hitokoto）随机句子。支持可视化设置面板、11种分类筛选、自动刷新、站点匹配（全站/白名单/黑名单）、外观自定义、SPA兼容。点击换句，右键打开设置。
 // @description:zh-CN  在任意网页顶部/底部显示一言（Hitokoto）随机句子。支持可视化设置面板、11种分类筛选、自动刷新、站点匹配（全站/白名单/黑名单）、外观自定义、SPA兼容。点击换句，右键打开设置。
 // @description:en  Display Hitokoto random quotes on any website. Features a visual settings panel, 11 categories, auto-refresh, site matching (all/whitelist/blacklist), appearance customization, and SPA compatibility. Click to refresh, right-click for settings.
@@ -65,31 +65,35 @@
     /* ============================================================
      *  配置读写（含校验）
      * ============================================================ */
+    const NUMBER_RULES = {
+        refreshInterval: { min: 0, max: 3600, integer: true },
+        fontSize: { min: 8, max: 48, integer: true },
+        opacity: { min: 0, max: 1 },
+        blur: { min: 0, max: 40, integer: true },
+        marginX: { min: 0, max: 500, integer: true },
+        maxWidth: { min: 20, max: 100, integer: true },
+    };
+
+    function validNumber(value, rule) {
+        return Number.isFinite(value) && value >= rule.min && value <= rule.max &&
+            (!rule.integer || Number.isInteger(value));
+    }
+
     function validateConfig(raw) {
         const cfg = Object.assign({}, DEFAULT_CONFIG);
         if (!raw || typeof raw !== 'object') return cfg;
         // 逐字段校验，类型不匹配则用默认值
         if (typeof raw.enabled === 'boolean')        cfg.enabled = raw.enabled;
         if (typeof raw.category === 'string')         cfg.category = raw.category;
-        if (typeof raw.refreshInterval === 'number' && raw.refreshInterval >= 0 && raw.refreshInterval <= 3600)
-                                                       cfg.refreshInterval = raw.refreshInterval;
-        if (raw.position === 'top' || raw.position === 'bottom')
-                                                       cfg.position = raw.position;
-        if (typeof raw.fontSize === 'number' && raw.fontSize >= 8 && raw.fontSize <= 48)
-                                                       cfg.fontSize = raw.fontSize;
-        if (typeof raw.opacity === 'number' && raw.opacity >= 0 && raw.opacity <= 1)
-                                                       cfg.opacity = raw.opacity;
+        for (const key in NUMBER_RULES) {
+            if (validNumber(raw[key], NUMBER_RULES[key])) cfg[key] = raw[key];
+        }
+        if (Number.isFinite(raw.zindex)) cfg.zindex = raw.zindex;
+        if (raw.position === 'top' || raw.position === 'bottom') cfg.position = raw.position;
         if (typeof raw.background === 'string' && raw.background.startsWith('rgba'))
-                                                       cfg.background = raw.background;
-        if (typeof raw.blur === 'number' && raw.blur >= 0 && raw.blur <= 40)
-                                                       cfg.blur = raw.blur;
-        if (typeof raw.marginX === 'number' && raw.marginX >= 0 && raw.marginX <= 500)
-                                                       cfg.marginX = raw.marginX;
-        if (typeof raw.maxWidth === 'number' && raw.maxWidth >= 20 && raw.maxWidth <= 100)
-                                                       cfg.maxWidth = raw.maxWidth;
+            cfg.background = raw.background;
         if (typeof raw.showFrom === 'boolean')        cfg.showFrom = raw.showFrom;
         if (typeof raw.animation === 'boolean')       cfg.animation = raw.animation;
-        if (typeof raw.zindex === 'number')           cfg.zindex = raw.zindex;
         if (['all','whitelist','blacklist'].indexOf(raw.siteMode) !== -1)
                                                        cfg.siteMode = raw.siteMode;
         if (typeof raw.siteList === 'string')         cfg.siteList = raw.siteList;
@@ -298,60 +302,84 @@
      *  一言获取
      * ============================================================ */
     let refreshTimer = null;
-    let isLoading = false; // 防止并发请求
+    let activeRequest = null;
+
+    function cancelRequest() {
+        const request = activeRequest;
+        activeRequest = null; // Invalidate before abort: managers may invoke callbacks synchronously.
+        if (request && request.handle && typeof request.handle.abort === 'function') {
+            request.handle.abort();
+        }
+    }
 
     function fetchHitokoto() {
-        // [Bug 修复] 同时检查 enabled 和 isSiteAllowed
-        if (!CONFIG.enabled || !isSiteAllowed()) return;
-        // [Bug 修复] 防抖：如果正在请求中则跳过
-        if (isLoading) return;
-        isLoading = true;
-
+        if (!CONFIG.enabled || !isSiteAllowed() || activeRequest) return;
         const bar = ensureBar();
-        const loadingEl = bar.querySelector('.hito-loading');
-        if (loadingEl) loadingEl.textContent = '加载中...';
-        else {
-            bar.innerHTML = '<span class="hito-loading">加载中...</span>';
+        if (!bar) return;
+        bar.innerHTML = '<span class="hito-loading">加载中...</span>';
+        const request = { handle: null };
+        activeRequest = request;
+
+        function finish(render) {
+            if (activeRequest !== request) return;
+            activeRequest = null;
+            if (!CONFIG.enabled || !isSiteAllowed()) return;
+            // Resolve the live node at completion, even if an SPA replaced it mid-request.
+            const currentBar = ensureBar();
+            if (currentBar) render(currentBar);
         }
 
         const cat = CONFIG.category ? '?c=' + CONFIG.category.split(',')[0].trim() : '';
         const url = 'https://v1.hitokoto.cn/' + cat + (cat ? '&' : '?') + 'encode=json';
-
-        GM_xmlhttpRequest({
-            method: 'GET',
-            url: url,
-            timeout: 8000,
-            onload: function (res) {
-                isLoading = false;
-                try {
-                    const d = JSON.parse(res.responseText);
-                    let html = '<span class="hito-text">' + escapeHtml(d.hitokoto || '未获取到句子') + '</span>';
-                    if (CONFIG.showFrom && d.from) {
-                        html += '<span class="hito-from">—— ' + escapeHtml(d.from) + '</span>';
-                    }
-                    bar.innerHTML = html;
-                    if (CONFIG.animation) {
-                        bar.classList.remove('hito-fade');
-                        void bar.offsetWidth;
-                        bar.classList.add('hito-fade');
-                    }
-                } catch (e) {
-                    bar.innerHTML = '<span class="hito-text">解析失败，点击重试</span>';
-                }
-            },
-            onerror: function () {
-                isLoading = false;
-                bar.innerHTML = '<span class="hito-text">网络错误，点击重试</span>';
-            },
-            ontimeout: function () {
-                isLoading = false;
-                bar.innerHTML = '<span class="hito-text">请求超时，点击重试</span>';
-            }
-        });
+        try {
+            request.handle = GM_xmlhttpRequest({
+                method: 'GET',
+                url: url,
+                timeout: 8000,
+                onload: function (res) {
+                    finish(function (currentBar) {
+                        try {
+                            const d = JSON.parse(res.responseText);
+                            let html = '<span class="hito-text">' + escapeHtml(d.hitokoto || '未获取到句子') + '</span>';
+                            if (CONFIG.showFrom && d.from) {
+                                html += '<span class="hito-from">—— ' + escapeHtml(d.from) + '</span>';
+                            }
+                            currentBar.innerHTML = html;
+                            if (CONFIG.animation) {
+                                currentBar.classList.remove('hito-fade');
+                                void currentBar.offsetWidth;
+                                currentBar.classList.add('hito-fade');
+                            }
+                        } catch (e) {
+                            currentBar.innerHTML = '<span class="hito-text">解析失败，点击重试</span>';
+                        }
+                    });
+                },
+                onerror: function () {
+                    finish(function (currentBar) {
+                        currentBar.innerHTML = '<span class="hito-text">网络错误，点击重试</span>';
+                    });
+                },
+                ontimeout: function () {
+                    finish(function (currentBar) {
+                        currentBar.innerHTML = '<span class="hito-text">请求超时，点击重试</span>';
+                    });
+                },
+                onabort: function () {
+                    finish(function (currentBar) {
+                        currentBar.innerHTML = '<span class="hito-text">请求已取消，点击重试</span>';
+                    });
+                },
+            });
+        } catch (e) {
+            finish(function (currentBar) {
+                currentBar.innerHTML = '<span class="hito-text">网络错误，点击重试</span>';
+            });
+        }
     }
 
     function setupTimer() {
-        if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+        if (refreshTimer !== null) { clearInterval(refreshTimer); refreshTimer = null; }
         // [Bug 修复] 定时器也要检查 isSiteAllowed
         if (CONFIG.enabled && isSiteAllowed() && CONFIG.refreshInterval > 0) {
             refreshTimer = setInterval(fetchHitokoto, CONFIG.refreshInterval * 1000);
@@ -366,7 +394,7 @@
         if (bar) return bar;
 
         // document.body 可能被 SPA 替换，确保 body 存在
-        if (!document.body) return document.createElement('div'); // 临时空元素
+        if (!document.body) return null;
 
         bar = document.createElement('div');
         bar.id = 'hito-bar';
@@ -395,22 +423,20 @@
      * ============================================================ */
     let spaObserver = null;
     function setupSPAWatcher() {
-        if (spaObserver) return;
-        if (typeof MutationObserver === 'undefined') return;
-
-        spaObserver = new MutationObserver(function (mutations) {
-            // 检查一言条是否还存在
-            if (CONFIG.enabled && isSiteAllowed()) {
-                if (!document.getElementById('hito-bar') && document.body) {
-                    ensureBar();
-                    fetchHitokoto();
-                }
+        if (!CONFIG.enabled || !isSiteAllowed()) {
+            if (spaObserver) spaObserver.disconnect();
+            spaObserver = null;
+            return;
+        }
+        if (spaObserver || typeof MutationObserver === 'undefined' || !document.documentElement) return;
+        spaObserver = new MutationObserver(function () {
+            if (CONFIG.enabled && isSiteAllowed() && document.body && !document.getElementById('hito-bar')) {
+                ensureBar();
+                fetchHitokoto();
             }
         });
-        // 监控 body 子节点变化（SPA 导航时可能替换整个内容）
-        if (document.body) {
-            spaObserver.observe(document.body, { childList: true });
-        }
+        // The root survives body replacement; subtree also catches removal of the bar.
+        spaObserver.observe(document.documentElement, { childList: true, subtree: true });
     }
 
     /* ============================================================
@@ -495,7 +521,7 @@
                             <div class="hito-sp-label">字号</div>
                         </div>
                         <div class="hito-sp-control">
-                            <input type="range" id="hito-cfg-fontSize" min="12" max="24" value="${CONFIG.fontSize}">
+                            <input type="range" id="hito-cfg-fontSize" min="8" max="48" value="${CONFIG.fontSize}">
                             <span class="hito-value-tag" id="hito-val-fontSize">${CONFIG.fontSize}px</span>
                         </div>
                     </div>
@@ -505,7 +531,7 @@
                             <div class="hito-sp-label">透明度</div>
                         </div>
                         <div class="hito-sp-control">
-                            <input type="range" id="hito-cfg-opacity" min="0.2" max="1" step="0.05" value="${CONFIG.opacity}">
+                            <input type="range" id="hito-cfg-opacity" min="0" max="1" step="any" value="${CONFIG.opacity}">
                             <span class="hito-value-tag" id="hito-val-opacity">${CONFIG.opacity}</span>
                         </div>
                     </div>
@@ -516,7 +542,7 @@
                         </div>
                         <div class="hito-sp-control">
                             <input type="color" id="hito-cfg-bgColor" value="${bgColor}">
-                            <input type="range" id="hito-cfg-bgAlpha" min="0" max="1" step="0.05" value="${bgAlpha}" style="width:80px">
+                            <input type="range" id="hito-cfg-bgAlpha" min="0" max="1" step="any" value="${bgAlpha}" style="width:80px">
                             <span class="hito-value-tag" id="hito-val-bgAlpha">${bgAlpha}</span>
                         </div>
                     </div>
@@ -526,7 +552,7 @@
                             <div class="hito-sp-label">毛玻璃模糊</div>
                         </div>
                         <div class="hito-sp-control">
-                            <input type="range" id="hito-cfg-blur" min="0" max="20" value="${CONFIG.blur}">
+                            <input type="range" id="hito-cfg-blur" min="0" max="40" value="${CONFIG.blur}">
                             <span class="hito-value-tag" id="hito-val-blur">${CONFIG.blur}px</span>
                         </div>
                     </div>
@@ -537,7 +563,7 @@
                             <div class="hito-sp-hint">距上/下边缘</div>
                         </div>
                         <div class="hito-sp-control">
-                            <input type="number" id="hito-cfg-marginX" min="0" max="200" value="${CONFIG.marginX}" style="width:70px"> px
+                            <input type="number" id="hito-cfg-marginX" min="0" max="500" value="${CONFIG.marginX}" style="width:70px"> px
                         </div>
                     </div>
 
@@ -546,7 +572,7 @@
                             <div class="hito-sp-label">最大宽度</div>
                         </div>
                         <div class="hito-sp-control">
-                            <input type="range" id="hito-cfg-maxWidth" min="40" max="100" value="${CONFIG.maxWidth}">
+                            <input type="range" id="hito-cfg-maxWidth" min="20" max="100" value="${CONFIG.maxWidth}">
                             <span class="hito-value-tag" id="hito-val-maxWidth">${CONFIG.maxWidth}%</span>
                         </div>
                     </div>
@@ -626,6 +652,19 @@
             </div>
         `;
         document.body.appendChild(overlay);
+        for (const key in NUMBER_RULES) {
+            const input = document.getElementById('hito-cfg-' + (key === 'refreshInterval' ? 'refresh' : key));
+            if (!input) continue;
+            const rule = NUMBER_RULES[key];
+            input.min = rule.min;
+            input.max = rule.max;
+            input.step = rule.integer ? 1 : 'any';
+            input.required = true;
+            input.addEventListener('input', function () { input.setCustomValidity(''); });
+        }
+        const alphaInput = document.getElementById('hito-cfg-bgAlpha');
+        alphaInput.step = 'any';
+        alphaInput.addEventListener('input', function () { alphaInput.setCustomValidity(''); });
         requestAnimationFrame(function () { overlay.classList.add('hito-show'); });
 
         // ---- 实时预览：range 拖动时更新数值标签 ----
@@ -718,26 +757,39 @@
             const newVal = function (id) { return document.getElementById(id).value; };
             const checked = function (id) { return document.getElementById(id).checked; };
 
+            const numericFields = {
+                refreshInterval: 'refresh', fontSize: 'fontSize', opacity: 'opacity',
+                blur: 'blur', marginX: 'marginX', maxWidth: 'maxWidth',
+            };
+            const numbers = {};
+            for (const key in numericFields) {
+                const input = document.getElementById('hito-cfg-' + numericFields[key]);
+                const value = input.value.trim() === '' ? NaN : Number(input.value);
+                const rule = NUMBER_RULES[key];
+                input.setCustomValidity(validNumber(value, rule) ? '' :
+                    '请输入 ' + rule.min + ' 到 ' + rule.max + ' 之间的' + (rule.integer ? '整数' : '数值'));
+                if (!input.reportValidity()) return;
+                numbers[key] = value;
+            }
+            const alphaInput = document.getElementById('hito-cfg-bgAlpha');
+            const bgA = alphaInput.value.trim() === '' ? NaN : Number(alphaInput.value);
+            alphaInput.setCustomValidity(validNumber(bgA, { min: 0, max: 1 }) ? '' : '请输入 0 到 1 之间的数值');
+            if (!alphaInput.reportValidity()) return;
             const bgC = newVal('hito-cfg-bgColor');
-            const bgA = parseFloat(newVal('hito-cfg-bgAlpha'));
             const r = parseInt(bgC.slice(1, 3), 16);
             const g = parseInt(bgC.slice(3, 5), 16);
             const b = parseInt(bgC.slice(5, 7), 16);
 
-            CONFIG.enabled        = checked('hito-cfg-enabled');
-            CONFIG.category       = newVal('hito-cfg-category');
-            CONFIG.refreshInterval= parseInt(newVal('hito-cfg-refresh'), 10) || 0;
-            CONFIG.position       = newVal('hito-cfg-position');
-            CONFIG.fontSize       = parseInt(newVal('hito-cfg-fontSize'), 10);
-            CONFIG.opacity        = parseFloat(newVal('hito-cfg-opacity'));
-            CONFIG.background     = 'rgba(' + r + ',' + g + ',' + b + ',' + bgA + ')';
-            CONFIG.blur           = parseInt(newVal('hito-cfg-blur'), 10);
-            CONFIG.marginX        = parseInt(newVal('hito-cfg-marginX'), 10) || 0;
-            CONFIG.maxWidth       = parseInt(newVal('hito-cfg-maxWidth'), 10);
-            CONFIG.showFrom       = checked('hito-cfg-showFrom');
-            CONFIG.animation      = checked('hito-cfg-animation');
-            CONFIG.siteMode       = newVal('hito-cfg-siteMode');
-            CONFIG.siteList       = newVal('hito-cfg-siteList');
+            CONFIG = validateConfig(Object.assign({}, CONFIG, numbers, {
+                enabled: checked('hito-cfg-enabled'),
+                category: newVal('hito-cfg-category'),
+                position: newVal('hito-cfg-position'),
+                background: 'rgba(' + r + ',' + g + ',' + b + ',' + bgA + ')',
+                showFrom: checked('hito-cfg-showFrom'),
+                animation: checked('hito-cfg-animation'),
+                siteMode: newVal('hito-cfg-siteMode'),
+                siteList: newVal('hito-cfg-siteList'),
+            }));
 
             saveConfig(CONFIG);
             overlay.remove();
@@ -746,6 +798,8 @@
     }
 
     function applyConfigChange() {
+        cancelRequest();
+        setupSPAWatcher();
         if (CONFIG.enabled && isSiteAllowed()) {
             ensureBar();
             applyVars();
@@ -800,12 +854,6 @@
         }
     }
 
-    waitForBody(function () {
-        if (!CONFIG.enabled || !isSiteAllowed()) return;
-        ensureBar();
-        fetchHitokoto();
-        setupTimer();
-        setupSPAWatcher();
-    });
+    waitForBody(applyConfigChange);
 
 })();

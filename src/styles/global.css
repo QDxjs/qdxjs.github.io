@@ -183,6 +183,7 @@ img{max-width:100%;height:auto;display:block}
 .article-head .by .src{font-family:var(--serif);font-style:normal;margin-left:.5rem;color:var(--muted)}
 .article-head .atags{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.9rem}
 .prose{font-size:1.04rem;line-height:2;overflow-wrap:anywhere}
+.prose a{text-decoration:underline}
 .prose p{margin:1.1rem 0}
 .prose h2{font-size:1.3rem;font-weight:700;margin:2.2rem 0 .8rem;letter-spacing:.03em;display:flex;align-items:baseline;gap:.6rem}
 .prose h2::before{content:"";width:24px;height:2px;background:var(--accent);flex:none;align-self:center}
