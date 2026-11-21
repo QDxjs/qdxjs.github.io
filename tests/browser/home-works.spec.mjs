@@ -14,8 +14,13 @@ test('home leads with real content and keeps demo content identified', async ({ 
   const item = index.find(entry => entry.url === href);
   expect(item, 'The lead must be actual indexed content').toBeTruthy();
   expect(item.demo).toBe(false);
-  await expect(featured.locator('img')).toHaveJSProperty('complete', true);
-  expect(await featured.locator('img').evaluate(img => img.naturalWidth)).toBeGreaterThan(0);
+  await expect(featured.locator('h2 a')).toHaveText(item.title);
+  await expect(featured.locator('.home-featured-action')).toHaveAttribute('href', item.url);
+  // A published essay can lead the home page without a work cover.
+  for (const image of await featured.locator('img').all()) {
+    await expect(image).toHaveJSProperty('complete', true);
+    expect(await image.evaluate(img => img.naturalWidth)).toBeGreaterThan(0);
+  }
   await expect(page.locator('.home-note')).toContainText('演示内容');
   await expect(page.locator('.home-columns .demo-badge').first()).toBeVisible();
   const shortcuts = page.getByRole('navigation', { name: '首页栏目快捷入口' });
