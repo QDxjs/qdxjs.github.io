@@ -1,16 +1,15 @@
-// Reproduce the guide images from the shipped script and built site.
-// Run `npm run build` first. All browser requests stay inside an offline fixture;
-// GM APIs return a fixed sample sentence, never a fabricated extension interface.
+// Reproduce guide images from the shipped script on an empty solid-color page.
+// All browser requests stay inside this offline fixture. The background must not
+// include blog biographies or other placeholder text. GM APIs use a sample quote.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, expect } from '@playwright/test';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const dist = path.join(root, 'dist');
 const output = path.join(root, 'public/images/works/hitokoto');
 const origin = 'https://demo.example';
-const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' };
+const fixture = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>一言界面演示</title><style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0;min-height:100vh;background:#F4EFE3;color:#2A2520;font-family:Arial,"Microsoft YaHei",sans-serif;line-height:1.85}</style></head><body><main id="demo-canvas" aria-label="纯色演示背景"></main></body></html>`;
 fs.mkdirSync(output, { recursive: true });
 const browser = await chromium.launch();
 try {
@@ -18,17 +17,14 @@ try {
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.route('**/*', async route => {
-    const url = new URL(route.request().url());
-    if (url.origin !== origin) return route.abort();
-    let file = path.resolve(dist, '.' + decodeURIComponent(url.pathname));
-    if (!file.startsWith(dist + path.sep)) return route.abort();
-    if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, 'index.html');
-    if (!fs.existsSync(file)) return route.fulfill({ status: 404, body: 'Not found' });
-    return route.fulfill({ body: fs.readFileSync(file), contentType: types[path.extname(file)] || 'application/octet-stream' });
-  });
-  await page.addInitScript(() => localStorage.setItem('qd-theme', 'light'));
-  await page.goto(`${origin}/about/`);
+  await page.route('**/*', route => route.request().url() === `${origin}/`
+    ? route.fulfill({ body: fixture, contentType: 'text/html; charset=utf-8' })
+    : route.abort());
+  await page.goto(`${origin}/`);
+  await expect(page.locator('body')).toHaveText('');
+  await expect(page.locator('#demo-canvas')).toBeEmpty();
+  await expect(page.locator('body')).toHaveCSS('background-image', 'none');
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(244, 239, 227)');
   await page.evaluate(() => {
     const menus = window.__hitokotoCaptureMenus = [];
     window.GM_getValue = (_key, fallback) => ({ ...fallback, category: 'd', position: 'bottom', fontSize: 18, opacity: 1, refreshInterval: 0, animation: false });
@@ -47,7 +43,8 @@ try {
   await expect(page.locator('#hito-bar')).toHaveCSS('font-size', '18px');
   await expect(page.locator('#hito-bar')).toHaveClass(/hito-bottom/);
   await page.evaluate(() => document.fonts.ready);
-  await page.screenshot({ path: path.join(output, 'bar.jpg'), type: 'jpeg', quality: 88, animations: 'disabled' });
+  await expect(page.locator('body > :not(#hito-bar):not(#demo-canvas)')).toHaveCount(0);
+  await page.screenshot({ path: path.join(output, 'bar-solid.jpg'), type: 'jpeg', quality: 88, clip: { x: 0, y: 360, width: 900, height: 220 }, animations: 'disabled' });
 
   await page.setViewportSize({ width: 900, height: 900 });
   await page.locator('#hito-bar').click({ button: 'right' });
@@ -66,7 +63,7 @@ try {
   expect(errors, 'Capture must not hide browser errors').toEqual([]);
   const files = fs.readdirSync(output).map(name => {
     const bytes = fs.readFileSync(path.join(output, name));
-    const pixels = name.endsWith('.png') ? { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) } : { width: 1800, height: 1160 };
+    const pixels = name.endsWith('.png') ? { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) } : { width: 1800, height: 440 };
     return { name, bytes: bytes.length, pixels, articleSize: { width: pixels.width / 2, height: pixels.height / 2 } };
   });
   console.log(JSON.stringify({ scriptVersion: '2.4', origin, sampleQuote: true, deviceScaleFactor: 2, files }, null, 2));
