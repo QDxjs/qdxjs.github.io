@@ -4,7 +4,7 @@ export const site = {
   description: '阅读札记、生活随笔与小作品。标有“演示内容”的条目与个人简介为演示内容。',
   author: 'QD',
   authorDemo: true,
-  domain: 'xingjisheneg.github.io',
+  domain: 'qdxjs.github.io',
   sinceYear: 2023,
 };
 
@@ -58,7 +58,7 @@ export const about = {
   ],
   contacts: [
     { label: 'RSS 订阅', href: '/rss.xml', verified: true },
-    { label: 'GitHub', href: 'https://github.com/xingjisheneg', verified: false },
+    { label: 'GitHub', href: 'https://github.com/QDxjs', verified: false },
   ],
 };
 
