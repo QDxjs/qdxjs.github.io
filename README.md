@@ -34,7 +34,25 @@ Playwright 测试使用本地页面和本地搜索索引，阻止外部资源请
 
 ## 内容维护
 
-内容集合在 `src/content.config.ts` 中声明，使用 `astro/loaders` 的 glob loader；文章位于 `src/content/notes`、`essays`、`works`。路由使用 loader 的 `id`，正文使用 `render(entry)` 渲染。
+内容集合在 `src/content.config.ts` 中声明，使用 `astro/loaders` 的 glob loader。路由使用 loader 的 `id`，正文使用 `render(entry)` 渲染。
+
+### 唯一发布源与文件位置
+
+**本仓库是当前博客的唯一发布源**，不要从旧项目或写作原稿区全量覆盖本目录。
+
+| 内容或资源 | 唯一发布位置 | 发布后的地址 |
+| --- | --- | --- |
+| 随笔 Markdown | `src/content/essays/` | `/essays/文章文件名/` |
+| 札记 Markdown | `src/content/notes/` | `/notes/文章文件名/` |
+| 作品 Markdown | `src/content/works/` | `/works/文章文件名/` |
+| 随笔图片 | `public/images/essays/文章标识/` | `/images/essays/文章标识/图片名` |
+| 札记图片 | `public/images/notes/文章标识/` | `/images/notes/文章标识/图片名` |
+| 作品图片 | `public/images/works/作品标识/` | `/images/works/作品标识/图片名` |
+| 作品下载文件 | `public/downloads/` | `/downloads/文件名` |
+
+`E:\Blog\随笔`、`E:\Blog\札记`、`E:\Blog\作品` 是电脑上的写作原稿区，不属于 Astro 构建输入；其中的文件不会自动上线。发布时选定具体文章，添加所需元信息并复制到上表目录；只复制正文实际引用的图片，保留原稿，不用旧原稿覆盖已发布的修订版。未选用的封面、截图、报告和临时脚本不要放入本仓库。
+
+`E:\agentDATA\trae\BLOG\qd-astro` 是旧项目及历史副本，不是当前发布源。`dist/` 是构建产物，`test-results/`、`playwright-report/` 是本地检查产物，均已忽略，不要提交。`node_modules/` 是依赖目录，也不属于内容管理范围。
 
 保留现有 frontmatter 的 `slug` 可保持文章地址。`tests/fixtures/published-routes.json` 记录本次升级前已有的文章入口；新增文章无需修改该清单，删除或改名已有入口时应先提供重定向方案再调整清单。搜索、RSS 和 sitemap 由内容自动生成。
 
