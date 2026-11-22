@@ -6,6 +6,10 @@ test('published essay page and root-based image load without layout overflow', a
   await page.goto('/essays/20261121-%E8%A6%86%E7%94%91%E4%B9%8B%E4%B8%8B/');
   await expect(page.getByRole('heading', { name: '覆甑之下', level: 1 })).toBeVisible();
   await expect(page.getByText('随笔·生活', { exact: true })).toBeVisible();
+  await expect(page.locator('.article-head .by')).toContainText('约 3 分钟');
+  await expect(page.locator('.article-head .by')).not.toContainText('约 约');
+  await expect(page.locator('.readinfo')).toContainText('约 3 分钟');
+  await expect(page.locator('.readinfo')).not.toContainText('约 约');
   const image = page.locator('.prose img');
   await expect(image).toHaveCount(1);
   await image.scrollIntoViewIfNeeded();
