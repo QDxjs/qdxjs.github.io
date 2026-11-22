@@ -28,15 +28,19 @@ test('home leads with real content and keeps demo content identified', async ({ 
   await expect(shortcuts.getByRole('link', { name: /按标签浏览/ })).toHaveAttribute('href', '/tags/');
 });
 
-test('work image opens the introduction and its tags stay separate links', async ({ page }) => {
+test('work thumbnail opens the introduction and its tags stay separate links', async ({ page }) => {
   await page.goto('/works/');
   const work = page.locator('.work').filter({ has: page.getByRole('heading', { name: '一言 · 全站通用版', exact: true }) });
   const primary = work.locator('.work-primary');
   const url = await primary.getAttribute('href');
-  await expect(work.locator('.work-thumb img')).toBeVisible();
-  expect(await work.locator('.work-thumb').evaluate(node => getComputedStyle(node).backgroundColor)).toBe('rgb(244, 239, 227)');
-  expect(await work.locator('.work-thumb img').evaluate(node => getComputedStyle(node).objectFit)).toBe('contain');
-  await work.locator('.work-thumb img').click();
+  // Every work uses the same typographic thumbnail: no cover image, kai text over a gradient.
+  await expect(work.locator('.work-thumb img')).toHaveCount(0);
+  const thumb = work.locator('.work-thumb span');
+  await expect(thumb).toBeVisible();
+  await expect(thumb).toHaveText('一言');
+  expect(await thumb.evaluate(node => getComputedStyle(node).fontFamily.toLowerCase())).toContain('kai');
+  expect(await work.locator('.work-thumb').evaluate(node => getComputedStyle(node).backgroundImage)).toContain('gradient');
+  await thumb.click();
   await expect(page).toHaveURL(value => decodeURIComponent(value.pathname) === decodeURIComponent(url));
   await page.goBack();
   await expect(work).toBeVisible();
