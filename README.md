@@ -49,11 +49,3 @@ Playwright 测试使用本地页面和本地搜索索引，阻止外部资源请
 `.github/workflows/deploy.yml` 对 PR、main 分支推送和手动触发执行相同校验：锁文件安装、依赖审计、`verify`、桌面和移动浏览器测试。PR 只校验；只有 main 的非 PR 运行且全部检查成功后才上传并部署 Pages。发布写权限只赋予 deploy 作业。
 
 本地执行检查不会推送代码或触发线上部署。首次使用或仓库设置变化后，仍需在 GitHub 设置中确认 Pages 使用 GitHub Actions。
-
-## 审查记录
-
-- [原始缺陷审查及方案](docs/audits/2026-11-21/博客缺陷审查与修复优化方案.md)
-- [修复记录与验收结果](docs/audits/2026-11-21/修复记录.md)
-- [设计与前端交互优化记录](docs/audits/2026-11-21/设计与前端交互优化记录.md)
-
-原始审查目录中的 `verification.json`、`npm-audit.json` 和审查报告是修复前快照。`verify-blog.mjs` 是当时的缺陷复现脚本，不是当前回归门禁，修复后不应运行它覆盖历史证据。当前检查以 `npm run verify` 和浏览器测试为准。
