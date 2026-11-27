@@ -8,6 +8,8 @@ import { parse } from 'parse5';
 import { XMLParser } from 'fast-xml-parser';
 import { SyntaxValidator } from 'fast-xml-validator';
 import config from '../astro.config.mjs';
+import { site as siteConfig } from '../src/config.ts';
+import sharp from 'sharp';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const dist = path.join(root, 'dist');
@@ -71,7 +73,60 @@ for (const [route, { nodes }] of documents) {
     }
   }
 }
+const socialImages = new Set();
+let responsiveSources = 0;
+for (const [route, { nodes, html }] of documents) {
+  assert.ok(!/fonts\.(googleapis|gstatic)\.com|cdn\.jsdelivr\.net\/npm\/lunar-javascript/.test(html), `${route}: unexpected third-party rendering dependency`);
+  const meta = (attribute, value) => nodes.filter(n => n.tag === 'meta' && n.attrs[attribute] === value);
+  const image = meta('property', 'og:image');
+  assert.equal(image.length, 1, `${route}: missing share image`);
+  const imageURL = new URL(image[0].attrs.content);
+  assert.equal(imageURL.origin, site.origin, `${route}: share image must be hosted locally`);
+  const target = targetFor(imageURL);
+  socialImages.add(target);
+  assert.equal(meta('name', 'twitter:card')[0]?.attrs.content, 'summary_large_image', `${route}: wrong Twitter card`);
+  assert.equal(meta('name', 'twitter:image')[0]?.attrs.content, imageURL.href, `${route}: Twitter image mismatch`);
+  for (const rel of ['icon', 'apple-touch-icon', 'manifest']) assert.ok(nodes.some(n => n.tag === 'link' && n.attrs.rel === rel), `${route}: missing ${rel}`);
+  for (const { tag, attrs, node } of nodes) {
+    if (tag === 'source' && attrs.srcset) {
+      assert.ok(attrs.sizes, `${route}: missing responsive image sizes`);
+      for (const candidate of attrs.srcset.split(',')) {
+        const [src, width] = candidate.trim().split(/\s+/);
+        assert.match(width, /^\d+w$/, `${route}: invalid responsive descriptor`);
+        targetFor(new URL(src, site));
+        responsiveSources++;
+      }
+    }
+    if (tag === 'img' && attrs.src?.startsWith('/images/')) {
+      assert.ok(Number(attrs.width) > 0 && Number(attrs.height) > 0, `${route}: image must reserve its aspect ratio`);
+      assert.equal(attrs.loading, 'lazy', `${route}: article image missing lazy loading`);
+      assert.equal(attrs.decoding, 'async', `${route}: article image missing async decoding`);
+    }
+    if (tag === 'script' && attrs.type === 'application/ld+json') {
+      const data = JSON.parse(node.childNodes.map(n => n.value || '').join(''));
+      if (['BlogPosting', 'CreativeWork'].includes(data['@type'])) {
+        assert.deepEqual(data.image, [imageURL.href], `${route}: JSON-LD share image mismatch`);
+        assert.equal(meta('property', 'og:type')[0]?.attrs.content, 'article', `${route}: article Open Graph type missing`);
+      }
+    }
+  }
+}
+for (const image of socialImages) {
+  const metadata = await sharp(image).metadata();
+  assert.equal(metadata.width, 1200, `Share image width: ${image}`);
+  assert.equal(metadata.height, 630, `Share image height: ${image}`);
+}
+assert.ok(responsiveSources >= 8, 'Responsive picture sources missing');
+const appManifest = JSON.parse(read('manifest.webmanifest'));
+for (const icon of appManifest.icons) {
+  const metadata = await sharp(targetFor(new URL(icon.src, site))).metadata();
+  assert.equal(`${metadata.width}x${metadata.height}`, icon.sizes, 'Manifest icon dimensions mismatch');
+}
+for (const name of ['noto-serif-sc', 'ma-shan-zheng', 'cormorant-garamond', 'lunar-javascript']) {
+  assert.ok(read(`licenses/${name}.txt`).trim(), `Missing redistributed asset license: ${name}`);
+}
 const search = JSON.parse(read('search.json'));
+assert.equal(socialImages.size, search.length + 1, 'Expected one default and one share image per content entry');
 const contentFiles = walk(path.join(root, 'src/content')).filter(f => f.endsWith('.md') && !path.basename(f).startsWith('_'));
 assert.equal(search.length, contentFiles.length, 'Search entries lost during content migration');
 assert.equal(new Set(search.map(e => e.url)).size, search.length, 'Duplicate search URLs');
@@ -94,8 +149,34 @@ const locations = sitemap.map(u => decodeURI(u.loc));
 const expected = [...documents.keys()].filter(route => route !== '/404.html').map(route => decodeURI(new URL(route, site).href));
 assert.deepEqual([...locations].sort(), expected.sort(), 'Sitemap does not match generated pages');
 for (const loc of locations) targetFor(new URL(loc));
-const rss = xml('rss.xml').rss.channel.item;
-const expectedFeed = search.filter(e => ['notes', 'essays'].includes(e.section)).map(e => decodeURI(new URL(e.url, site).href));
+const contentDates = new Map(search.map(entry => {
+  const doc = documents.get(decodeURI(entry.url));
+  const data = doc.nodes.filter(n => n.tag === 'script' && n.attrs.type === 'application/ld+json')
+    .map(n => JSON.parse(n.node.childNodes.map(child => child.value || '').join('')))
+    .find(data => ['BlogPosting', 'CreativeWork'].includes(data['@type']));
+  return [decodeURI(entry.url), data?.dateModified || data?.datePublished];
+}));
+const latestDate = entries => entries.map(entry => contentDates.get(decodeURI(entry.url))).filter(Boolean).sort().at(-1);
+const expectedDates = new Map(contentDates);
+for (const route of ['/', '/search/', '/tags/']) expectedDates.set(route, latestDate(search));
+for (const section of ['notes', 'essays', 'works']) expectedDates.set(`/${section}/`, latestDate(search.filter(entry => entry.section === section)));
+for (const item of sitemap) {
+  const route = decodeURI(new URL(item.loc).pathname);
+  assert.equal(item.lastmod, expectedDates.get(route), `${route}: sitemap must use known content dates, not build timestamps`);
+}
+const rssBytes = fs.readFileSync(path.join(dist, 'rss.xml'));
+const rssText = new TextDecoder('utf-8', { fatal: true }).decode(rssBytes);
+assert.deepEqual(Buffer.from(rssText, 'utf8'), rssBytes, 'RSS UTF-8 round trip changed bytes');
+assert.ok(!rssText.includes('\uFFFD'), 'RSS contains a Unicode replacement character');
+const channel = xml('rss.xml').rss.channel;
+assert.equal(channel.title, siteConfig.name, 'RSS Chinese channel title changed');
+const rss = channel.item;
+const feedEntries = search.filter(e => ['notes', 'essays'].includes(e.section));
+for (const entry of feedEntries) {
+  const item = rss.find(item => decodeURI(item.link) === decodeURI(new URL(entry.url, site).href));
+  assert.equal(item?.title, entry.demo ? `【演示内容】${entry.title}` : entry.title, `RSS title changed: ${entry.url}`);
+}
+const expectedFeed = feedEntries.map(e => decodeURI(new URL(e.url, site).href));
 assert.deepEqual(rss.map(item => decodeURI(item.link)).sort(), expectedFeed.sort(), 'RSS membership changed');
 assert.ok(read('robots.txt').includes(`Sitemap: ${new URL('sitemap.xml', site)}`), 'robots sitemap URL mismatch');
-console.log(JSON.stringify({ htmlPages: files.length, contentEntries: search.length, inlineScripts, jsonLd, localReferences, sitemapUrls: locations.length, rssItems: rss.length, publishedUrlsPreserved: published.length }, null, 2));
+console.log(JSON.stringify({ htmlPages: files.length, contentEntries: search.length, inlineScripts, jsonLd, localReferences, sitemapUrls: locations.length, sitemapDatedUrls: sitemap.filter(item => item.lastmod).length, rssItems: rss.length, rssUtf8: true, socialImages: socialImages.size, responsiveCandidates: responsiveSources, publishedUrlsPreserved: published.length }, null, 2));

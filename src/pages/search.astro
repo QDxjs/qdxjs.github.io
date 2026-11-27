@@ -1,6 +1,9 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { site } from '../config';
+import { createHash } from 'node:crypto';
+import { getAllEntries, toSearchRecord } from '../content-utils';
+const searchVersion = createHash('sha256').update(JSON.stringify((await getAllEntries()).map(toSearchRecord))).digest('hex').slice(0, 16);
 ---
 <BaseLayout title={`搜索 · ${site.name}`} active="search">
   <div class="container">
@@ -17,8 +20,15 @@ import { site } from '../config';
           <button type="submit" class="search-action search-submit">搜索</button>
           <button type="reset" class="search-action">清空</button>
         </div>
+        <label class="search-scope" for="scope">内容范围
+          <select id="scope" name="scope" class="search-action">
+            <option value="all">全部内容</option>
+            <option value="published">仅正式内容</option>
+            <option value="demo">仅演示内容</option>
+          </select>
+        </label>
       </form>
-      <section id="searchOutput" data-deferred-results data-state="blank" aria-label="搜索结果">
+      <section id="searchOutput" data-deferred-results data-state="blank" data-index-url={`/search.json?v=${searchVersion}`} aria-label="搜索结果">
         <p class="search-meta" id="meta" role="status" aria-live="polite" aria-atomic="true">输入关键词开始搜索。</p>
         <div id="results" aria-busy="false"></div>
         <button type="button" class="search-action" id="retrySearch" hidden>重试搜索</button>
@@ -32,6 +42,11 @@ import { site } from '../config';
     document.addEventListener('DOMContentLoaded', () => {
       const form = document.getElementById('searchForm');
       const input = document.getElementById('q');
+      const scope = document.getElementById('scope');
+      const currentScope = () => {
+        const value = new URLSearchParams(location.search).get('scope');
+        return ['published', 'demo'].includes(value) ? value : 'all';
+      };
       const output = document.getElementById('searchOutput');
       const results = document.getElementById('results');
       const meta = document.getElementById('meta');
@@ -44,7 +59,7 @@ import { site } from '../config';
         if (!indexPromise) {
           const controller = new AbortController();
           const timeout = window.setTimeout(() => controller.abort(), 8000);
-          indexPromise = fetch('/search.json', { signal: controller.signal, cache: 'no-cache' })
+          indexPromise = fetch(output.dataset.indexUrl, { signal: controller.signal })
             .then(response => {
               if (!response.ok) throw new Error('Search index unavailable');
               return response.json();
@@ -135,6 +150,7 @@ import { site } from '../config';
         const requestGeneration = ++generation;
         currentQuery = query;
         input.value = query;
+        scope.value = currentScope();
         results.replaceChildren();
         if (!query) {
           setState('blank', '输入关键词开始搜索。');
@@ -146,13 +162,13 @@ import { site } from '../config';
           if (requestGeneration !== generation) return;
           const needle = query.toLowerCase();
           // Rank by the strongest matching field, never by occurrence counts.
-          // An explicit index tie-break preserves the source order for equal ranks.
+          // Equal ranks prefer published content, then preserve source order.
           const matches = index.map((item, order) => {
             const fields = [[item.title], item.tags, [item.excerpt], [item.src], [item.body]];
             const rank = fields.findIndex(texts => texts.some(text => text.toLowerCase().includes(needle)));
             return { item, order, rank };
-          }).filter(match => match.rank !== -1)
-            .sort((a, b) => a.rank - b.rank || a.order - b.order)
+          }).filter(match => match.rank !== -1 && (currentScope() === 'all' || Boolean(match.item.demo) === (currentScope() === 'demo')))
+            .sort((a, b) => a.rank - b.rank || Number(Boolean(a.item.demo)) - Number(Boolean(b.item.demo)) || a.order - b.order)
             .map(match => match.item);
           if (!matches.length) {
             results.append(element('p', 'search-empty', '青灯之下，未寻得此卷。换个词试试？'));
@@ -178,6 +194,7 @@ import { site } from '../config';
       function changeQuery(query) {
         const url = new URL('/search/', window.location.origin);
         if (query) url.searchParams.set('q', query);
+        if (scope.value !== 'all') url.searchParams.set('scope', scope.value);
         window.dispatchEvent(new Event('qd:before-change'));
         if (url.href !== window.location.href) history.pushState({}, '', url);
         render(query);
@@ -187,8 +204,10 @@ import { site } from '../config';
         event.preventDefault();
         changeQuery(input.value.trim());
       });
+      scope.addEventListener('change', () => changeQuery(input.value.trim()));
       form.addEventListener('reset', event => {
         event.preventDefault();
+        scope.value = 'all';
         changeQuery('');
         input.focus();
       });
@@ -202,6 +221,8 @@ import { site } from '../config';
     .search-heading{font-family:var(--kai);font-size:2.2rem;font-weight:400;letter-spacing:.08em}
     .search-help{color:var(--muted);font-size:.88rem;margin:.5rem 0 1.4rem}
     #searchForm label{display:block;font-size:.9rem;margin-bottom:.4rem}
+    .search-scope{margin-top:.9rem;color:var(--muted)}
+    .search-scope select{margin-left:.5rem;max-width:100%}
     .search-controls{display:flex;flex-wrap:wrap;gap:.6rem}
     .search-box{flex:1 1 16rem;min-width:0;display:flex;align-items:center;gap:.7rem;border:1px solid var(--rule2);border-radius:var(--r);padding:.7rem 1rem;background:var(--paper);transition:.2s}
     .search-box:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}

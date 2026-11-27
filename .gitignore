@@ -1,3 +1,11 @@
+# generated responsive images, icons and font license copies
+.generated/
+public/images/generated/
+public/favicon.ico
+public/apple-touch-icon.png
+public/icon-192.png
+public/icon-512.png
+public/licenses/
 # build output
 dist/
 # generated types

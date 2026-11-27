@@ -45,7 +45,7 @@ async function scrollTo(page, top) {
 }
 
 test('search ranks title, tags, excerpt, source and body with stable ties and safe text', async ({ page }) => {
-  await page.route('**/search.json', route => route.fulfill({ json: rankingFixture }));
+  await page.route('**/search.json?*', route => route.fulfill({ json: rankingFixture }));
   await page.goto('/search/?q=needle');
   await expect(page.locator('#searchOutput')).toHaveAttribute('data-state', 'success');
   await expect(page.locator('.st a')).toHaveText([
@@ -70,7 +70,7 @@ test('search ranks title, tags, excerpt, source and body with stable ties and sa
 test('search retries failures and ignores a stale pending response after clearing', async ({ page }) => {
   let requests = 0;
   let release;
-  await page.route('**/search.json', async route => {
+  await page.route('**/search.json?*', async route => {
     requests++;
     if (requests === 1) return route.fulfill({ status: 503, body: 'Unavailable' });
     await new Promise(resolve => { release = resolve; });
@@ -90,7 +90,7 @@ test('search retries failures and ignores a stale pending response after clearin
 
 test('returning from a result restores the query, relevance order and list position', async ({ page }) => {
   const fixture = Array.from({ length: 25 }, (_, index) => entry(`needle 结果 ${index}`));
-  await page.route('**/search.json', route => route.fulfill({ json: fixture }));
+  await page.route('**/search.json?*', route => route.fulfill({ json: fixture }));
   await page.goto('/search/?q=needle');
   const result = page.locator('.st a').nth(15);
   await result.scrollIntoViewIfNeeded();

@@ -34,7 +34,10 @@ export function homeSelection(entries: Entry[]) {
     if (!a.data.date && !b.data.date) return byAuthorOrder(a, b);
     return byDate(a, b);
   });
-  return [...sorted.filter(entry => entry.data.featured), ...sorted.filter(entry => !entry.data.featured)].slice(0, 3);
+  return [false, true].flatMap(demo => [
+    ...sorted.filter(entry => entry.data.demo === demo && entry.data.featured),
+    ...sorted.filter(entry => entry.data.demo === demo && !entry.data.featured),
+  ]).slice(0, 3);
 }
 
 export function entryURL(entry: Entry) {

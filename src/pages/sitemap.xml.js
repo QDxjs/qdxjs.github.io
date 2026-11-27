@@ -4,9 +4,14 @@ import { site } from '../config';
 export async function GET(context) {
   const base = context.site || `https://${site.domain}/`;
   const entries = await getAllEntries();
+  // A build timestamp is not evidence that a page changed. Omit unknown dates.
+  const lastmod = items => items.map(item => item.data.updated || item.data.date).filter(Boolean).sort().at(-1);
+  const latest = lastmod(entries);
   const pages = [
-    ...['/', '/notes/', '/essays/', '/works/', '/about/', '/search/', '/tags/'].map(url => ({ url })),
-    ...entries.map(item => ({ url: entryURL(item), lastmod: item.data.updated })),
+    ...['/', '/search/', '/tags/'].map(url => ({ url, lastmod: latest })),
+    ...['notes', 'essays', 'works'].map(section => ({ url: `/${section}/`, lastmod: lastmod(entries.filter(item => item.collection === section)) })),
+    { url: '/about/' },
+    ...entries.map(item => ({ url: entryURL(item), lastmod: item.data.updated || item.data.date })),
   ];
   const escapeXML = value => value.replace(/[<>&"']/g, character => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' })[character]);
   const xml = `<?xml version="1.0" encoding="UTF-8"?>

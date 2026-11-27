@@ -1,13 +1,18 @@
 ---
 import '../styles/global.css';
+import '@fontsource-variable/noto-serif-sc';
+import '@fontsource/ma-shan-zheng';
+import '@fontsource/cormorant-garamond/latin-400.css';
+import '@fontsource/cormorant-garamond/latin-500.css';
+import '@fontsource/cormorant-garamond/latin-400-italic.css';
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
 import { site } from '../config';
 
-interface Props { title?: string; description?: string; active?: string; demo?: boolean; authorDemo?: boolean }
-const { title = site.name, description = site.description, active = '', demo = false, authorDemo = site.authorDemo } = Astro.props;
+interface Props { title?: string; description?: string; active?: string; demo?: boolean; authorDemo?: boolean; image?: string; type?: 'website' | 'article'; published?: string; modified?: string }
+const { title = site.name, description = site.description, active = '', demo = false, authorDemo = site.authorDemo, image = '/og/default.png', type = 'website', published, modified } = Astro.props;
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
-const fontStylesheet = 'https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;700&family=Ma+Shan+Zheng&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&display=swap';
+const imageURL = new URL(image, Astro.site);
 const websiteJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
@@ -30,18 +35,30 @@ const websiteJsonLd = {
   <title>{title}</title>
   <meta name="description" content={description} />
   <link rel="canonical" href={canonicalURL} />
-  <meta property="og:type" content="website" />
+  <meta property="og:type" content={type} />
   <meta property="og:title" content={title} />
   <meta property="og:description" content={description} />
   <meta property="og:url" content={canonicalURL} />
   <meta property="og:site_name" content={site.name} />
-  <meta name="twitter:card" content="summary" />
+  <meta property="og:image" content={imageURL} />
+  <meta property="og:image:secure_url" content={imageURL} />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content={title} />
+  <meta property="og:locale" content="zh_CN" />
+  {published && <meta property="article:published_time" content={published} />}
+  {modified && <meta property="article:modified_time" content={modified} />}
+  <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content={title} />
   <meta name="twitter:description" content={description} />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href={fontStylesheet} rel="stylesheet" media="print" onload="this.media='all'" />
-  <noscript><link href={fontStylesheet} rel="stylesheet" /></noscript>
+  <meta name="twitter:image" content={imageURL} />
+  <meta name="twitter:image:alt" content={title} />
+  <meta name="theme-color" content="#A23A2E" />
+  <link rel="icon" href="/favicon.ico" sizes="32x32" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+  <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="alternate" type="application/rss+xml" title={site.name} href="/rss.xml" />
   <link rel="sitemap" type="application/xml" title={site.name} href="/sitemap.xml" />
   <script type="application/ld+json" set:html={JSON.stringify(websiteJsonLd).replace(/</g, '\\u003c')} />

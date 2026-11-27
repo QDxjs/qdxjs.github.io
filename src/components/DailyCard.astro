@@ -75,6 +75,8 @@ import { calendar as calCfg, hitokoto as hkCfg } from '../config';
 .dc-export-status{margin-top:.6rem}
 </style>
 <script>
+  import lunarLibraryUrl from 'lunar-javascript/lunar.js?url';
+
   type LunarDate = {
     getMonthInChinese(): string;
     getDayInChinese(): string;
@@ -123,7 +125,7 @@ import { calendar as calCfg, hitokoto as hkCfg } from '../config';
         else reject(new Error('invalid'));
       };
       const timer = window.setTimeout(() => finish(new Error('timeout')), timeoutMs);
-      script.src = 'https://cdn.jsdelivr.net/npm/lunar-javascript@1/lunar.js';
+      script.src = lunarLibraryUrl;
       script.async = true;
       script.referrerPolicy = 'no-referrer';
       script.onload = () => finish();

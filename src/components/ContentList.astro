@@ -9,6 +9,7 @@ const isTags = mode === 'tags';
 const tags = [...new Set(entries.flatMap(entry => entry.data.tags))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
 const filters = [{ key: 'all', label: '全部' }, ...Object.entries(sectionLabels).map(([key, label]) => ({ key, label }))];
 const pages = Math.ceil(entries.length / 10);
+const scopes = [{ key: 'all', label: '全部内容' }, { key: 'published', label: '仅正式内容' }, { key: 'demo', label: '仅演示内容' }];
 ---
 <section data-paginated-list data-list-page data-mode={mode} data-deferred-results data-state="loading">
   {isTags && (
@@ -22,6 +23,9 @@ const pages = Math.ceil(entries.length / 10);
       </nav>
     </>
   )}
+  <nav class="list-filters" aria-label="按内容状态筛选">
+    {scopes.map(scope => <a href={`?scope=${scope.key}&page=1`} data-scope-filter={scope.key}>{scope.label}</a>)}
+  </nav>
   <div class="list-summary" data-list-top tabindex="-1">
     <p data-list-status role="status" aria-live="polite">{isTags ? '选择一个标签，继续翻阅相关内容。' : `共 ${entries.length} 条内容，每页最多 10 条。`}</p>
     {!isTags && <a class="all-tags-link" href={`/tags/?section=${mode}&page=1`}>浏览全部标签</a>}
@@ -29,7 +33,7 @@ const pages = Math.ceil(entries.length / 10);
   </div>
   <div class:list={['list-items', mode === 'works' ? 'work-grid' : 'cards', { 'tag-results': isTags }]}>
     {entries.map((entry, index) => (
-      <div data-list-item data-section={entry.collection} data-tags={JSON.stringify(entry.data.tags)} hidden={isTags || index >= 10}>
+      <div data-list-item data-section={entry.collection} data-demo={String(entry.data.demo)} data-tags={JSON.stringify(entry.data.tags)} hidden={isTags || index >= 10}>
         {entry.collection === 'works' ? <WorkCard work={entry} showSection={isTags} /> : <ArticleCard item={entry} showSection={isTags} />}
       </div>
     ))}
@@ -53,7 +57,7 @@ const pages = Math.ceil(entries.length / 10);
     const root = list;
     const isTags = root.dataset.mode === 'tags';
     const items = Array.from(root.querySelectorAll<HTMLElement>('[data-list-item]')).map(node => ({
-      node, section: node.dataset.section!, tags: JSON.parse(node.dataset.tags!) as string[],
+      node, section: node.dataset.section!, demo: node.dataset.demo === 'true', tags: JSON.parse(node.dataset.tags!) as string[],
     }));
     const status = root.querySelector<HTMLElement>('[data-list-status]')!;
     const feedback = root.querySelector<HTMLElement>('[data-list-feedback]')!;
@@ -71,7 +75,10 @@ const pages = Math.ceil(entries.length / 10);
       const tag = (url.searchParams.get('tag') || '').trim();
       const requestedSection = url.searchParams.get('section') || 'all';
       const section = Object.hasOwn(names, requestedSection) ? requestedSection : 'all';
-      const tagged = isTags ? items.filter(item => tag && item.tags.includes(tag)) : items;
+      const requestedScope = url.searchParams.get('scope') || 'all';
+      const scope = ['published', 'demo'].includes(requestedScope) ? requestedScope : 'all';
+      const scoped = items.filter(item => scope === 'all' || item.demo === (scope === 'demo'));
+      const tagged = isTags ? scoped.filter(item => tag && item.tags.includes(tag)) : scoped;
       const matching = isTags && section !== 'all' ? tagged.filter(item => item.section === section) : tagged;
       const totalPages = Math.ceil(matching.length / 10);
       const rawPage = url.searchParams.get('page');
@@ -106,6 +113,18 @@ const pages = Math.ceil(entries.length / 10);
           else link.removeAttribute('aria-current');
         });
       }
+      if (scope === 'all') url.searchParams.delete('scope');
+      else url.searchParams.set('scope', scope);
+      root.querySelectorAll<HTMLAnchorElement>('[data-scope-filter]').forEach(link => {
+        const target = new URL(url);
+        const value = link.dataset.scopeFilter!;
+        if (value === 'all') target.searchParams.delete('scope');
+        else target.searchParams.set('scope', value);
+        target.searchParams.set('page', '1');
+        link.href = target.href;
+        if (value === scope) link.setAttribute('aria-current', 'true');
+        else link.removeAttribute('aria-current');
+      });
       if (url.href !== location.href) history.replaceState(history.state, '', url);
       items.forEach(item => { item.node.hidden = true; });
       matching.slice((page - 1) * 10, page * 10).forEach(item => { item.node.hidden = false; });
@@ -145,7 +164,7 @@ const pages = Math.ceil(entries.length / 10);
     }
 
     root.addEventListener('click', event => {
-      const link = (event.target as Element).closest<HTMLAnchorElement>('[data-page-prev], [data-page-next], [data-section-filter], [data-tag-choice]');
+      const link = (event.target as Element).closest<HTMLAnchorElement>('[data-page-prev], [data-page-next], [data-section-filter], [data-tag-choice], [data-scope-filter]');
       if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       if (!link.hasAttribute('href')) { event.preventDefault(); return; }
       event.preventDefault();

@@ -1,6 +1,6 @@
 /* ===== 全局主题与样式 ===== */
 :root{
-  --serif:'Noto Serif SC','Source Han Serif SC','Songti SC','SimSun',serif;
+  --serif:'Noto Serif SC Variable','Source Han Serif SC','Songti SC','SimSun',serif;
   --kai:'Ma Shan Zheng','STKaiti','KaiTi','楷体',var(--serif);
   --latin:'Cormorant Garamond','Georgia',serif;
   --mono:'SFMono-Regular','Consolas',monospace;

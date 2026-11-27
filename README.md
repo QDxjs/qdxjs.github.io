@@ -2,6 +2,8 @@
 
 Astro 静态博客，部署到 GitHub Pages。当前默认地址由 `astro.config.mjs` 中的 `site` 指定，可通过 `SITE_URL` 覆盖。
 
+当前网站版本：**1.1.0**。更新内容见 [更新记录](CHANGELOG.md)。
+
 ## 本地运行
 
 使用 `.nvmrc` 指定的 Node.js **24.19.0** 与 npm **11.x**（本次验证为 11.17.0）。`package.json` 的 engines 限定同一主版本，CI 直接读取 `.nvmrc`。
@@ -24,9 +26,10 @@ npm audit --audit-level=low
 ```
 
 - `npm run check`：Astro/TypeScript 诊断。
-- `npm test`：完整用户脚本的 VM 回归，以及实际主题 CSS 的对比度和正文链接样式检查。
-- `npm run build`：生成静态站点到 `dist/`。
-- `npm run check:dist`：检查 HTML 内联脚本、JSON-LD、本地文件与锚点、文章正文和搜索索引、RSS、站点地图、robots 以及已发布文章地址。
+- `npm test`：完整用户脚本的 VM 回归、实际主题 CSS 的对比度和正文链接样式检查，以及响应式图片与图片清单缓存更新回归。
+- `npm run prepare:assets`：从原始图片生成带内容哈希的 AVIF/WebP 候选、图片尺寸清单、站点图标及字体/农历库许可证；dev/check/build 自动执行。
+- `npm run build`：生成静态站点到 `dist/`，同时生成默认及逐篇内容分享图。
+- `npm run check:dist`：检查 HTML 内联脚本、JSON-LD、本地文件与锚点、文章正文和搜索索引、RSS UTF-8/标题、站点地图日期、robots、分享图和图标尺寸、响应式图片以及已发布文章地址。
 - `npm run verify`：依次执行类型检查、单元回归、构建和生成文件检查。
 - `npm run test:browser`：针对已构建产物启动本地 preview，运行 Chromium 桌面和移动模拟测试。仅修改源码后应先重新构建。Linux 安装浏览器可使用 `npx playwright install --with-deps chromium`。
 
@@ -54,13 +57,23 @@ Playwright 测试使用本地页面和本地搜索索引，阻止外部资源请
 
 `E:\agentDATA\trae\BLOG\qd-astro` 是旧项目及历史副本，不是当前发布源。`dist/` 是构建产物，`test-results/`、`playwright-report/` 是本地检查产物，均已忽略，不要提交。`node_modules/` 是依赖目录，也不属于内容管理范围。
 
-保留现有 frontmatter 的 `slug` 可保持文章地址。`tests/fixtures/published-routes.json` 记录本次升级前已有的文章入口；新增文章无需修改该清单，删除或改名已有入口时应先提供重定向方案再调整清单。搜索、RSS 和 sitemap 由内容自动生成。
+现有文章的文件名与 loader `id` 决定发布地址，改名或迁移时需要保留入口或提供重定向。`tests/fixtures/published-routes.json` 记录本次升级前已有的文章入口；新增文章无需修改该清单，删除或改名已有入口时应先提供重定向方案再调整清单。搜索、RSS 和 sitemap 由内容自动生成。
 
 `public/downloads/hitokoto-universal.user.js` 是实际发布的用户脚本。修改其行为时，应同步更新脚本 `@version`、作品介绍中的版本及相关操作说明。
 
 现有演示内容和作者演示标识按原策略保留；发布真实个人经历或项目成果前，请自行核实对应内容。首页重点入口只从 `demo: false` 的条目中选择，优先 `featured: true`，没有正式内容时不显示推荐区。
 
 作品缩略图统一使用楷体文字加渐变色块（由 frontmatter 的 `cls` 选择配色），不使用截图或封面图，以保持列表与首页的视觉一致。首页推荐区因此只显示文字，不显示作品配图。`src/content.config.ts` 仍保留可选的 `cover` 字段，但当前没有作品使用它。
+
+## 资源生成与本轮审计
+
+原始图片继续放在 `public/images/`。dev/check/build 自动准备响应式图片、图标及许可证；生成目录 `.generated/`、`public/images/generated/` 和派生图标已忽略，无需手工提交。开发服务运行中新增或替换图片后，执行 `npm run prepare:assets` 并重启开发服务，使 Markdown 处理器读取新清单。图片清单摘要参与 Astro 内容缓存标识，后续 check/build 会自动刷新仅图片发生变化的正文。调整图片编码参数时应同步更新生成脚本中的缓存版本；调整图片转换规则时应更新 Markdown 插件的版本标识。
+
+Markdown 图片自动使用 AVIF/WebP `picture`，保留原始 `src` 作为格式回退；现有手写 HTML 截图保留原来的尺寸与原图查看链接。中文正文、书法与拉丁字体均由本站发布，农历库仅在关于页按需加载。一言不可用时显示本地句子，日历公历与重试入口仍可用。
+
+搜索仍在首次非空查询时加载索引；索引请求携带内容哈希，跨页面是否复用 HTTP 缓存遵循托管服务响应头。列表、标签和搜索支持 `scope=published` / `scope=demo`，默认包含所有内容；演示标记与已发布地址保留。
+
+逐项核实和取舍见 [审计迭代计划](docs/audit-iteration-plan.md)，最终验证结果见 [完成记录](docs/audit-completion-report.md)。
 
 ## 发布校验
 

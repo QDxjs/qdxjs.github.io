@@ -23,6 +23,8 @@ const title = displayTitle(item.data.title, demo);
 const description = displayDescription(summary, demo);
 const articleURL = new URL(entryURL(item), Astro.site || `https://${site.domain}/`).href;
 const isWork = item.collection === 'works';
+const imagePath = `/og/${item.collection}/${item.id}.png`;
+const imageURL = new URL(imagePath, Astro.site || `https://${site.domain}/`).href;
 const articleJsonLd = {
   '@context': 'https://schema.org',
   '@type': isWork ? 'CreativeWork' : 'BlogPosting',
@@ -30,17 +32,19 @@ const articleJsonLd = {
   description,
   url: articleURL,
   mainEntityOfPage: { '@type': 'WebPage', '@id': articleURL },
+  image: [imageURL],
+  inLanguage: 'zh-CN',
   ...(!site.authorDemo && !demo ? {
     author: { '@type': 'Person', name: site.author },
     publisher: { '@type': 'Person', name: site.author },
   } : {}),
   ...(date ? { datePublished: date } : {}),
-  ...(updated ? { dateModified: updated } : {}),
+  ...(updated || date ? { dateModified: updated || date } : {}),
   ...(tags.length ? { keywords: tags.join(', ') } : {}),
   ...(source ? { about: source } : {}),
 };
 ---
-<BaseLayout title={`${title} · ${site.name}`} description={description} active={section} demo={demo}>
+<BaseLayout title={`${title} · ${site.name}`} description={description} active={section} demo={demo} image={imagePath} type="article" published={date} modified={updated || date}>
   <script type="application/ld+json" slot="ld-json" set:html={JSON.stringify(articleJsonLd).replace(/</g, '\\u003c')} />
   <div class="progress-bar" aria-hidden="true"><i id="progFill"></i></div>
   <div class="container">
