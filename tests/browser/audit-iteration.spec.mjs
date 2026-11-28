@@ -39,17 +39,22 @@ test('article chooses a responsive modern image and uses local fonts with comple
 });
 
 test('content scopes keep published and demo lists distinct through browser history', async ({ page }) => {
+  const works = (await (await page.request.get('/search.json')).json()).filter(item => item.section === 'works');
+  const publishedWorks = works.filter(item => !item.demo);
+  const demoWorks = works.filter(item => item.demo);
+  expect(publishedWorks.length).toBeGreaterThan(0);
+  expect(demoWorks.length).toBeGreaterThan(0);
   await page.goto('/works/?scope=published');
   const visible = page.locator('[data-list-item]:visible');
-  await expect(visible).toHaveCount(1);
-  await expect(visible.first()).toHaveAttribute('data-demo', 'false');
+  await expect(visible).toHaveCount(publishedWorks.length);
+  expect(await visible.evaluateAll(nodes => nodes.every(node => node.dataset.demo === 'false'))).toBe(true);
   await page.locator('[data-scope-filter="demo"]').click();
-  await expect(visible).toHaveCount(5);
+  await expect(visible).toHaveCount(demoWorks.length);
   expect(await visible.evaluateAll(nodes => nodes.every(node => node.dataset.demo === 'true'))).toBe(true);
   await page.goBack();
-  await expect(visible).toHaveCount(1);
+  await expect(visible).toHaveCount(publishedWorks.length);
   await expect(page.locator('[data-scope-filter="published"]')).toHaveAttribute('aria-current', 'true');
-  const published = (await (await page.request.get('/search.json')).json()).find(item => item.section === 'works' && !item.demo);
+  const published = publishedWorks[0];
   await page.goto('/tags/?' + new URLSearchParams({ tag: published.tags[0], scope: 'published' }));
   expect(await page.locator('[data-list-item]:visible').evaluateAll(nodes => nodes.length > 0 && nodes.every(node => node.dataset.demo === 'false'))).toBe(true);
 });
